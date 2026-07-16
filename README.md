@@ -1,4 +1,4 @@
-# Food Bank Pickup Scheduler — v1
+# Food Bank Pickup Scheduler — v1 
 
 Sign up for a weekly food pickup by text message. Pickups are Wednesdays at 5:00pm and 5:30pm,
 30 spots each.
