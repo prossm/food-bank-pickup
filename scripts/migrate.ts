@@ -16,40 +16,51 @@ const pool = new Pool({
   ssl: url.includes('localhost') ? undefined : { rejectUnauthorized: true },
 });
 
+// Arbitrary but fixed: identifies this app's migration lock among any other advisory locks.
+const MIGRATION_LOCK_KEY = 4_812_003;
+
 async function main() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      name text PRIMARY KEY,
-      applied_at timestamptz NOT NULL DEFAULT now()
-    )
-  `);
+  const lock = await pool.connect();
+  try {
+    // This runs from the Vercel build, and two deploys can build at once. Without a lock they
+    // would both try to apply 0000_init and one would die on a duplicate-object error, failing
+    // a deploy for no real reason. The loser waits, then finds the work already done.
+    await lock.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
 
-  const dir = join(process.cwd(), 'drizzle');
-  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+    await lock.query(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        name text PRIMARY KEY,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
 
-  for (const file of files) {
-    const done = await pool.query('SELECT 1 FROM _migrations WHERE name = $1', [file]);
-    if (done.rowCount) {
-      console.log(`  skip ${file}`);
-      continue;
+    const dir = join(process.cwd(), 'drizzle');
+    const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+
+    for (const file of files) {
+      const done = await lock.query('SELECT 1 FROM _migrations WHERE name = $1', [file]);
+      if (done.rowCount) {
+        console.log(`  skip ${file}`);
+        continue;
+      }
+      const sql = await readFile(join(dir, file), 'utf8');
+      try {
+        await lock.query('BEGIN');
+        await lock.query(sql);
+        await lock.query('INSERT INTO _migrations (name) VALUES ($1)', [file]);
+        await lock.query('COMMIT');
+        console.log(`  applied ${file}`);
+      } catch (e) {
+        await lock.query('ROLLBACK');
+        console.error(`  FAILED ${file}`);
+        throw e;
+      }
     }
-    const sql = await readFile(join(dir, file), 'utf8');
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(sql);
-      await client.query('INSERT INTO _migrations (name) VALUES ($1)', [file]);
-      await client.query('COMMIT');
-      console.log(`  applied ${file}`);
-    } catch (e) {
-      await client.query('ROLLBACK');
-      console.error(`  FAILED ${file}`);
-      throw e;
-    } finally {
-      client.release();
-    }
+  } finally {
+    await lock.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]).catch(() => {});
+    lock.release();
+    await pool.end();
   }
-  await pool.end();
 }
 
 main().catch((e) => {
