@@ -1,0 +1,17 @@
+# `vercel deploy` from a developer machine uploads the working directory, and it does not
+# apply .gitignore to that upload — so a local .env would ride along into the build and sit
+# next to the real credentials Vercel injects.
+#
+# Nothing breaks today (both Next.js and dotenv decline to overwrite a variable that already
+# exists in the environment, so Vercel's DATABASE_URL still wins over the local one). But the
+# local file points DATABASE_URL at localhost, and relying on load-order precedence to keep
+# production off a developer's laptop database is not a thing to rely on.
+.env
+.env.*
+!.env.example
+
+# Never needed in a build.
+tests
+node_modules
+.next
+.git
