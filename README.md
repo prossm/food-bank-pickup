@@ -105,6 +105,23 @@ subquery — it looks atomic and isn't. `slots_not_oversold` is the backstop if 
 The displayed "spots left" is an unlocked read and is **stale by design**. Nothing may gate an
 insert on it; the machine has a `slot_full → SLOT_SELECT` edge for losing the race.
 
+## Dependencies
+
+**Do not run `npm audit fix --force` here.** npm's proposed "fix" for the postcss advisory is
+to install `next@9.3.3` — a six-year downgrade that would destroy the app. `npm audit` is
+clean as of now, and it got that way deliberately:
+
+- **`overrides: { postcss: ^8.5.19 }`** in package.json. Next pins `postcss@8.4.31`, which is
+  below the patched 8.5.10, and `next@16.2.10` is the latest published version — so there is
+  no upgrade to take. The override forces the patched postcss within the same major. Verified:
+  the build compiles all Tailwind classes, dark mode, and keyframes. Once Next ships a release
+  bundling postcss ≥8.5.10, drop the override.
+- **Drizzle was removed.** The original plan called for it, but every migration is plain SQL —
+  the claim CTE, the partial unique index, and the `EXCLUDE` constraint aren't things an ORM
+  expresses — so `drizzle-orm`/`drizzle-kit` were never imported and only contributed a
+  vulnerable esbuild chain. The `drizzle/` directory is just where the `.sql` files live; the
+  name is vestigial. Postgres is reached through `pg` directly.
+
 ## Open questions for the food bank
 
 1. **Food tier boundaries.** The brief says "3-4 members" and "6+", which defines neither **5**
