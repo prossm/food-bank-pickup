@@ -42,6 +42,35 @@ npm run dev                   # http://localhost:3000
 - `/chat` — the simulated text thread
 - `/admin` — staff roster: spots left, households, people, boxes to stage
 
+## Staff accounts for /admin
+
+The roster shows every household's phone number, size and dietary restrictions, so it sits
+behind a login. There is no sign-up page — creating the first account is the one thing that
+can't be done from behind the login, and an open "create admin" endpoint would be a hole in
+its own right. Instead, hash the password locally and run one statement:
+
+```bash
+npm run admin:sql -- pat@foodbank.org              # prompts for a password
+npm run admin:sql -- pat@foodbank.org --generate   # mints a strong one and prints it
+```
+
+It prints an `INSERT ... ON CONFLICT DO UPDATE`. Paste it into psql locally, or the **Neon SQL
+editor** for production. The script never connects to a database: the password stays on your
+machine and the production credential stays in Neon. Re-running it for an existing address
+resets that password, which is also how a password reset works today.
+
+Sessions live in `admin_sessions` and last 12 hours. To revoke one immediately —
+`DELETE FROM admin_sessions WHERE admin_user_id = ...` — or all of them, `TRUNCATE
+admin_sessions`. Deleting an account revokes its sessions by cascade.
+
+The security boundary is `requireAdmin()` in `src/lib/auth/dal.ts`, which every admin page and
+action must call before reading household data. `src/proxy.ts` also redirects cookie-less
+requests, but that is only a pre-filter — it checks that *a* cookie exists, not that it's
+valid, so it is not something to rely on. (Middleware is called Proxy as of Next.js 16.)
+
+Known gaps, accepted for now: no login rate limiting, no MFA, no self-service reset. See
+"Open questions" before this meets real staff.
+
 ## Migrations — they run themselves on deploy
 
 **Every Vercel deploy runs `migrate` then `seed` before `next build`**, via the `vercel-build`
