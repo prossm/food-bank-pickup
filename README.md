@@ -42,6 +42,51 @@ npm run dev                   # http://localhost:3000
 - `/chat` — the simulated text thread
 - `/admin` — staff roster: spots left, households, people, boxes to stage
 
+## Migrations — they run themselves on deploy
+
+**Every Vercel deploy runs `migrate` then `seed` before `next build`**, via the `vercel-build`
+script in package.json. There is no manual step and nothing to remember. Deploying applies any
+new migration; that is the only way schema reaches production.
+
+**Why it works this way.** Neon's Vercel integration creates `DATABASE_URL` as a *sensitive*
+variable, which Vercel will let you write but never read back — `vercel env pull` returns an
+empty string for it. So the production database is unreachable from a developer machine, and
+migrations have to run somewhere that already holds the credential. The build does. The secret
+never leaves Vercel, which is a better outcome than copying it onto laptops.
+
+**Adding a migration:** drop a new `drizzle/NNNN_name.sql` in sequence. Applied files are
+tracked in the `_migrations` table and skipped on later runs. Nothing else to do — the next
+deploy picks it up.
+
+**What makes re-running safe on every deploy:**
+- Applied migrations are recorded in `_migrations` and skipped (`skip 0000_init.sql` in the log).
+- Each migration runs inside a transaction — a failure rolls back and **fails the build**,
+  rather than half-applying and deploying anyway.
+- `migrate` takes a **Postgres advisory lock**. Two deploys can build concurrently; without it
+  both would apply the same file and one would fail the deploy on a duplicate object.
+- `seed` uses `ON CONFLICT DO NOTHING` **everywhere**, food tiers included. It fills in what's
+  absent and never owns a value. This matters: `DO UPDATE` there would silently revert the food
+  bank's corrected tier boundaries to the placeholders on every single deploy.
+- Seeding slots each deploy is deliberate — it rolls the Wednesday slots forward six weeks, and
+  existing ones are left alone (`ON CONFLICT (starts_at) DO NOTHING`). With no reminder cron
+  yet, this is what keeps future slots available.
+
+**Reading the deploy log** — a healthy build says:
+
+```
+skip 0000_init.sql
+applied 0001_phone_identity.sql
+tiers already present — left untouched
+0 slots seeded (America/New_York, capacity 30)
+```
+
+`tiers already present` is the good outcome: it means live tier config survived the deploy.
+
+**The tradeoff, stated plainly.** Schema changes ship the moment the deploy does, with no human
+gate in between. A destructive migration would apply itself before anyone saw it. Keep
+migrations additive and expand-then-contract; anything that drops or rewrites data deserves a
+manual run against Neon instead.
+
 ### Tests
 
 ```bash
