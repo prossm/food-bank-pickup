@@ -1,5 +1,16 @@
 import { query } from '../client';
 
+export interface RosterHousehold {
+  phone: string | null;
+  /** Supplied by staff; null until someone fills it in. The chat never asks. */
+  name: string | null;
+  size: number;
+  boxes: number;
+  allergies: string[];
+  /** When a human last confirmed the size. Null for rows predating the column. */
+  sizeConfirmedAt: Date | null;
+}
+
 export interface RosterRow {
   code: string;
   role: string;
@@ -7,7 +18,7 @@ export interface RosterRow {
   families: number;
   people: number;
   boxes: number;
-  householdNames: string;
+  households: RosterHousehold[];
   allergies: string | null;
 }
 
@@ -18,7 +29,7 @@ interface Row extends Record<string, unknown> {
   families: string;
   people: string;
   boxes: string;
-  household_names: string | null;
+  households: RosterHousehold[] | null;
   allergies: string | null;
 }
 
@@ -37,9 +48,14 @@ export async function bookedPickups(): Promise<RosterRow[]> {
       SELECT
         pf.pickup_id,
         pf.family_id,
+        pf.position,
         pf.family_size_snapshot,
         COALESCE(t.boxes, 0) AS boxes,
-        f.name
+        f.name,
+        f.phone_e164,
+        f.size_confirmed_at,
+        ARRAY(SELECT fa.kind::text FROM family_allergies fa
+               WHERE fa.family_id = f.id ORDER BY fa.kind::text) AS kinds
       FROM pickup_families pf
       JOIN families f       ON f.id = pf.family_id
       LEFT JOIN food_tiers t ON t.id = pf.food_tier_snapshot
@@ -51,7 +67,19 @@ export async function bookedPickups(): Promise<RosterRow[]> {
       COUNT(fam.family_id)                       AS families,
       COALESCE(SUM(fam.family_size_snapshot), 0) AS people,
       COALESCE(SUM(fam.boxes), 0)                AS boxes,
-      string_agg(fam.name, ', ')                 AS household_names,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'phone', fam.phone_e164,
+            'name', fam.name,
+            'size', fam.family_size_snapshot,
+            'boxes', fam.boxes,
+            'allergies', to_jsonb(fam.kinds),
+            'sizeConfirmedAt', fam.size_confirmed_at
+          ) ORDER BY fam.position
+        ) FILTER (WHERE fam.family_id IS NOT NULL),
+        '[]'::jsonb
+      )                                          AS households,
       -- Correlated, so it can't fan out the sums above. Aggregating fam.allergies directly
       -- would concatenate per-household strings and repeat kinds ("dairy free, dairy free").
       (SELECT string_agg(DISTINCT fa.kind::text, ', ')
@@ -73,7 +101,12 @@ export async function bookedPickups(): Promise<RosterRow[]> {
     families: Number(r.families),
     people: Number(r.people),
     boxes: Number(r.boxes),
-    householdNames: r.household_names ?? '',
+    households: (r.households ?? []).map((h) => ({
+      ...h,
+      size: Number(h.size),
+      boxes: Number(h.boxes),
+      sizeConfirmedAt: h.sizeConfirmedAt ? new Date(h.sizeConfirmedAt) : null,
+    })),
     allergies: r.allergies,
   }));
 }

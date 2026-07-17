@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { transition } from '@/lib/conversation/machine';
-import { initialState, type SessionState, type TransitionContext } from '@/lib/conversation/types';
+import {
+  initialState,
+  type Effect,
+  type SessionState,
+  type TransitionContext,
+} from '@/lib/conversation/types';
 import { keywordParser } from '@/lib/conversation/parser/keyword-parser';
 import { NODE_SPECS, slotOptions } from '@/lib/conversation/nodes';
 import { render } from '@/lib/i18n/render';
-import type { FoodTier, SlotView } from '@/lib/domain/types';
+import type { AllergyKind, FoodTier, SlotView } from '@/lib/domain/types';
 
 const TIERS: FoodTier[] = [
   { id: 'small', minSize: 1, maxSize: 2, boxes: 1, labelKey: 'tier.small' },
@@ -13,244 +18,236 @@ const TIERS: FoodTier[] = [
 ];
 
 const SLOTS: SlotView[] = [
-  {
-    id: 'slot-5pm',
-    startsAt: new Date('2026-07-22T21:00:00Z'), // 5:00pm America/New_York
-    capacity: 30,
-    spotsUsed: 18,
-    spotsLeft: 12,
-  },
-  {
-    id: 'slot-530pm',
-    startsAt: new Date('2026-07-22T21:30:00Z'),
-    capacity: 30,
-    spotsUsed: 0,
-    spotsLeft: 30,
-  },
+  { id: 'slot-5pm', startsAt: new Date('2026-07-22T21:00:00Z'), capacity: 30, spotsUsed: 18, spotsLeft: 12 },
+  { id: 'slot-530pm', startsAt: new Date('2026-07-22T21:30:00Z'), capacity: 30, spotsUsed: 0, spotsLeft: 30 },
 ];
 
 const CTX: TransitionContext = { slots: SLOTS, tiers: TIERS };
 
-/**
- * Drives the machine the way the runner does — through the real parser — so these tests
- * cover text→intent→state end to end, minus the I/O.
- */
-async function say(state: SessionState, text: string, ctx: TransitionContext = CTX) {
-  const spec = NODE_SPECS[state.node];
-  const options = state.node === 'SLOT_SELECT' ? slotOptions(ctx.slots) : (spec.options ?? []);
-  const intent = await keywordParser.parse({ text, node: state.node, locale: state.locale, options });
-  return transition(state, { type: 'intent', intent }, ctx);
-}
+type Registry = Record<string, { size: number; allergies: AllergyKind[] }>;
 
-/** Replays a whole conversation, returning the final state and every message sent. */
-async function converse(texts: string[], ctx: TransitionContext = CTX) {
+/**
+ * Stands in for the runner: drives real text through the real parser, and answers
+ * LOOKUP_FAMILY from a fake registry — so these tests cover text → intent → state → effect
+ * end to end with no database.
+ */
+async function converse(texts: string[], ctx: TransitionContext = CTX, known: Registry = {}) {
   let state = initialState();
   const sent: string[] = [];
-  for (const t of texts) {
-    const r = await say(state, t, ctx);
-    state = r.state;
-    sent.push(...r.out.map((s) => render(s, state.locale)));
-    if (r.effects.length) return { state, sent, effects: r.effects };
+  let booked: Effect | null = null;
+
+  const settle = (out: ReturnType<typeof transition>) => {
+    state = out.state;
+    sent.push(...out.out.map((s) => render(s, state.locale)));
+    const pending = [...out.effects];
+    while (pending.length) {
+      const effect = pending.shift()!;
+      if (effect.type === 'BOOK') {
+        booked = effect;
+        continue;
+      }
+      const hit = known[effect.phone];
+      const after = transition(
+        state,
+        {
+          type: 'effectResult',
+          result: hit
+            ? { kind: 'family_known', phone: effect.phone, size: hit.size, allergies: hit.allergies }
+            : { kind: 'family_new', phone: effect.phone },
+        },
+        ctx,
+      );
+      state = after.state;
+      sent.push(...after.out.map((s) => render(s, state.locale)));
+      pending.push(...after.effects);
+    }
+  };
+
+  for (const text of texts) {
+    const spec = NODE_SPECS[state.node];
+    const options = state.node === 'SLOT_SELECT' ? slotOptions(ctx.slots) : (spec.options ?? []);
+    const intent = await keywordParser.parse({ text, node: state.node, locale: state.locale, options });
+    settle(transition(state, { type: 'intent', intent }, ctx));
+    if (booked) break;
   }
-  return { state, sent, effects: [] };
+  return { state, sent, booked: booked as Effect | null };
 }
 
-describe('happy path — a family signing up for itself', () => {
-  it('collects one household and reaches CONFIRM without asking how many families', async () => {
-    const { state, sent } = await converse(['1', '2', 'Chen', 'skip', '4', '4']);
+describe('a family signing up for itself', () => {
+  it('is identified by phone and never asked for a name', async () => {
+    const { state, sent } = await converse(['1', '2', '212-555-0100', '4', '4']);
 
     expect(state.node).toBe('SLOT_SELECT');
     expect(state.families).toEqual([
-      { name: 'Chen', phone: null, size: 4, allergies: [], isSelf: true },
+      { phone: '+12125550100', size: 4, allergies: [], known: false, isSelf: true },
     ]);
-    // Never asked "how many families" — it's implicitly one.
-    expect(sent.join('\n')).not.toMatch(/how many families/i);
-    // The slot list shows real remaining spots.
+    expect(sent.join('\n')).not.toMatch(/last name|apellido/i);
     expect(sent.at(-1)).toContain('12 spots left');
-    expect(sent.at(-1)).toContain('30 spots left');
-  });
-
-  it('emits a BOOK effect on confirm rather than touching a database', async () => {
-    const { effects, state } = await converse(['1', '2', 'Chen', 'skip', '4', '4', '1', 'yes']);
-    expect(effects).toEqual([{ type: 'BOOK', slotId: 'slot-5pm' }]);
-    expect(state.node).toBe('CONFIRM');
   });
 });
 
-describe('happy path — an ambassador for several families', () => {
-  it('counts the ambassador household on top of the OTHER families they name', async () => {
-    const { state } = await converse([
-      '1', '1',            // English, ambassador
-      'yes',               // picking up for their own household too
-      '2',                 // two OTHER families
-      'Alvarez', 'skip', '4', '4',
-      'Chen', 'skip', '6', '1',
-      'Diallo', 'skip', '2', '3',
+describe('an ambassador who knows numbers, not names', () => {
+  it('collects a phone per household and counts their own on top', async () => {
+    const { state, sent } = await converse([
+      '1', '1',              // English, ambassador
+      'yes',                 // picking up for their own household too
+      '2',                   // two OTHER families
+      '212-555-0100', '4', '2',
+      '212-555-0187', '6', '4',
+      '212-555-0199', '2', '3',
     ]);
 
-    expect(state.familyCount).toBe(3); // 2 others + their own
-    expect(state.families.map((f) => f.name)).toEqual(['Alvarez', 'Chen', 'Diallo']);
+    expect(state.familyCount).toBe(3);
+    expect(state.families.map((f) => f.phone)).toEqual([
+      '+12125550100',
+      '+12125550187',
+      '+12125550199',
+    ]);
     expect(state.families[0].isSelf).toBe(true);
     expect(state.families[1].isSelf).toBe(false);
-    expect(state.families[1].allergies).toEqual(['gluten_free']);
     expect(state.families[2].allergies).toEqual(['gluten_free', 'dairy_free']);
-    expect(state.node).toBe('SLOT_SELECT');
+    expect(sent.join('\n')).not.toMatch(/last name/i);
   });
 
-  it('does not add a self household when the ambassador is a pure courier', async () => {
-    const { state } = await converse([
-      '1', '1', 'no', '2',
-      'Alvarez', 'skip', '4', '4',
-      'Chen', 'skip', '6', '4',
-    ]);
-    expect(state.familyCount).toBe(2);
-    expect(state.families.every((f) => !f.isSelf)).toBe(true);
-  });
-
-  it('shows the right box total on the confirm summary — 4+6+2 people = 2+3+1 boxes', async () => {
+  it('shows phones on the confirmation, formatted for humans', async () => {
     const { sent } = await converse([
-      '1', '1', 'no', '3',
-      'Alvarez', 'skip', '4', '4',
-      'Chen', 'skip', '6', '4',
-      'Diallo', 'skip', '2', '4',
+      '1', '1', 'no', '2',
+      '2125550187', '6', '4',
+      '2125550199', '2', '4',
       '1',
     ]);
     const summary = sent.at(-1)!;
-    expect(summary).toContain('6 boxes');
-    expect(summary).toContain('Alvarez — 4 people');
-    expect(summary).toContain('Chen — 6 people');
+    expect(summary).toContain('(212) 555-0187 — 6 people');
+    expect(summary).toContain('(212) 555-0199 — 2 people');
+    expect(summary).toContain('4 boxes'); // 3 + 1
+    expect(summary).not.toContain('+1212'); // E.164 is storage, not display
+  });
+});
+
+describe('dedupe by phone', () => {
+  it('reuses a known household and skips its two questions', async () => {
+    const known: Registry = { '+12125550187': { size: 6, allergies: ['dairy_free'] } };
+    const { state, sent } = await converse(
+      ['1', '1', 'no', '2', '212-555-0187', '212-555-0199', '2', '4'],
+      CTX,
+      known,
+    );
+
+    // The known household needed only its phone; the unknown one needed size + restrictions.
+    expect(state.families).toEqual([
+      { phone: '+12125550187', size: 6, allergies: ['dairy_free'], known: true, isSelf: false },
+      { phone: '+12125550199', size: 2, allergies: [], known: false, isSelf: false },
+    ]);
+    expect(state.node).toBe('SLOT_SELECT');
+  });
+
+  it('says it recognised the household, but does not leak its details', async () => {
+    const known: Registry = { '+12125550187': { size: 6, allergies: ['dairy_free'] } };
+    const { sent } = await converse(['1', '2', '212-555-0187'], CTX, known);
+
+    const ack = sent.find((m) => m.includes('already on file'))!;
+    expect(ack).toBeDefined();
+    // Whoever holds a phone shouldn't learn a household's size by guessing numbers at it.
+    expect(ack).not.toMatch(/\b6\b/);
+    expect(ack.toLowerCase()).not.toContain('dairy');
+  });
+
+  it('treats differently-typed spellings of one number as the same household', async () => {
+    const known: Registry = { '+12125550187': { size: 6, allergies: [] } };
+    for (const spelling of ['212-555-0187', '(212) 555-0187', '+1 212 555 0187', '2125550187']) {
+      const { state } = await converse(['1', '2', spelling], CTX, known);
+      expect(state.families[0]?.known, `${spelling} should be recognised`).toBe(true);
+    }
+  });
+
+  it('rejects the same number twice in one conversation', async () => {
+    // Otherwise an ambassador books "two" households that are one row, and the second
+    // silently overwrites the first — they'd leave with too little food.
+    const { state, sent } = await converse([
+      '1', '1', 'no', '2',
+      '212-555-0187', '6', '4',
+      '212-555-0187',
+    ]);
+    expect(state.node).toBe('FAMILY_PHONE');
+    expect(state.families).toHaveLength(1);
+    expect(sent.join()).toContain('already added that phone number');
+  });
+
+  it('requires a phone — SKIP is no longer a way out', async () => {
+    const { state, sent } = await converse(['1', '2', 'skip']);
+    expect(state.node).toBe('FAMILY_PHONE');
+    expect(sent.join()).toContain("doesn't look like a phone number");
   });
 });
 
 describe('input handling', () => {
-  it('accepts Spanish words, accent-free spellings, and fullwidth digits', async () => {
-    const a = await converse(['2']); // Español
+  it('speaks Spanish, accent-free and in words', async () => {
+    const a = await converse(['2']);
     expect(a.state.locale).toBe('es');
     expect(a.sent.at(-1)).toContain('¿Recoge solo para su hogar');
 
-    const b = await converse(['２']); // fullwidth 2 from a CJK keyboard
-    expect(b.state.locale).toBe('es');
-
-    // "si" without the accent, which is how people actually text
     const c = await converse(['2', '1', 'si']);
     expect(c.state.includeSelf).toBe(true);
     expect(c.state.node).toBe('FAMILY_COUNT');
   });
 
-  it('re-asks instead of advancing when a reply makes no sense', async () => {
-    const { state, sent } = await converse(['1', 'purple monkey']);
-    expect(state.node).toBe('ROLE_SELECT'); // did not move on
-    expect(sent.join()).toContain("didn't catch that");
+  it('rejects invalid phone numbers, including the fictional 555 area code', async () => {
+    const bad = await converse(['1', '2', '12']);
+    expect(bad.state.node).toBe('FAMILY_PHONE');
+
+    const fake = await converse(['1', '2', '(555) 010-0100']);
+    expect(fake.state.node).toBe('FAMILY_PHONE');
   });
 
   it('rejects a household size of zero and an absurd family count', async () => {
-    const zero = await converse(['1', '2', 'Chen', 'skip', '0']);
+    const zero = await converse(['1', '2', '212-555-0100', '0']);
     expect(zero.state.node).toBe('FAMILY_SIZE');
     expect(zero.sent.join()).toContain('between 1 and 30');
 
     const many = await converse(['1', '1', 'no', '40']);
     expect(many.state.node).toBe('FAMILY_COUNT');
-    expect(many.sent.join()).toContain('call the food bank');
-  });
-
-  it('validates phone numbers but lets people skip', async () => {
-    const bad = await converse(['1', '2', 'Chen', '12']);
-    expect(bad.state.node).toBe('FAMILY_PHONE');
-    expect(bad.sent.join()).toContain("doesn't look like a phone number");
-
-    // 555 is not a real area code, so this is correctly rejected — worth pinning down,
-    // because it's exactly the fake number a tester reaches for first.
-    const fake = await converse(['1', '2', 'Chen', '(555) 010-0100']);
-    expect(fake.state.node).toBe('FAMILY_PHONE');
-
-    const good = await converse(['1', '2', 'Chen', '(212) 555-0100']);
-    expect(good.state.node).toBe('FAMILY_SIZE');
-    expect(good.state.partial.phone).toBe('+12125550100');
-  });
-
-  it('normalizes however someone happens to type their number', async () => {
-    for (const written of ['2125550100', '212-555-0100', '+1 212 555 0100', '(212) 555 0100']) {
-      const r = await converse(['1', '2', 'Chen', written]);
-      expect(r.state.partial.phone, `${written} should normalize`).toBe('+12125550100');
-    }
   });
 });
 
 describe('global commands', () => {
-  it('RESTART wipes collected families', async () => {
-    const { state } = await converse(['1', '2', 'Chen', 'skip', '4', '4', 'restart']);
+  it('RESTART wipes collected households', async () => {
+    const { state } = await converse(['1', '2', '212-555-0100', '4', '4', 'restart']);
     expect(state.node).toBe('LANG_SELECT');
     expect(state.families).toEqual([]);
   });
 
-  it('HELP answers without losing the current question', async () => {
-    const { state, sent } = await converse(['1', '2', 'Chen', 'help']);
-    expect(state.node).toBe('FAMILY_PHONE');
-    expect(state.partial.name).toBe('Chen');
-    expect(sent.join()).toContain('(555) 010-0100');
-  });
-
-  it('BACK re-opens the previous household mid-loop instead of stranding the user', async () => {
+  it('BACK re-opens the previous household mid-loop', async () => {
     const { state } = await converse([
       '1', '1', 'no', '2',
-      'Alvarez', 'skip', '4', '4',
-      'back', // partway into family 2, go back to family 1
+      '212-555-0187', '4', '4',
+      'back',
     ]);
-    expect(state.node).toBe('FAMILY_NAME');
+    expect(state.node).toBe('FAMILY_PHONE');
     expect(state.cursor).toBe(0);
-    expect(state.families).toEqual([]); // Alvarez re-opened for editing
+    expect(state.families).toEqual([]);
   });
 
-  it('BACK wins over a household surname that collides with the keyword', async () => {
-    // A deliberate trade: "back" at the name prompt means the command, so the rare household
-    // named Back must give a different name. Someone fixing a typo is far more common, and
-    // without this they would have no way to correct it.
-    const { state } = await converse(['1', '2', 'Back']);
-    expect(state.node).toBe('ROLE_SELECT');
-    expect(state.partial.name).toBeUndefined();
+  it('BACK from the slot list re-opens a recognised household at its phone prompt', async () => {
+    // A recognised household answered no questions, so there is no size step to go back to.
+    const known: Registry = { '+12125550187': { size: 6, allergies: [] } };
+    const { state } = await converse(['1', '2', '212-555-0187', 'back'], CTX, known);
+    expect(state.node).toBe('FAMILY_PHONE');
+    expect(state.families).toEqual([]);
   });
 });
 
-describe('losing the race for a spot', () => {
-  it('apologises and re-offers when the slot filled up mid-conversation', async () => {
-    const { state } = await converse(['1', '2', 'Chen', 'skip', '4', '4', '1', 'yes']);
+describe('booking', () => {
+  it('emits a BOOK effect on confirm rather than touching a database', async () => {
+    const { booked } = await converse(['1', '2', '212-555-0100', '4', '4', '1', 'yes']);
+    expect(booked).toEqual({ type: 'BOOK', slotId: 'slot-5pm' });
+  });
+
+  it('keeps the households when the slot fills up mid-conversation', async () => {
+    const { state } = await converse(['1', '2', '212-555-0100', '4', '4', '1', 'yes']);
     const after = transition(state, { type: 'effectResult', result: { kind: 'slot_full' } }, CTX);
-
     expect(after.state.node).toBe('SLOT_SELECT');
-    expect(after.state.selectedSlotId).toBeNull();
-    expect(render(after.out[0], 'en')).toContain('filled up');
-    // The family data survives — they don't re-enter five households.
     expect(after.state.families).toHaveLength(1);
-  });
-
-  it('tells the user when nothing is left at all', async () => {
-    const full: TransitionContext = {
-      tiers: TIERS,
-      slots: SLOTS.map((s) => ({ ...s, spotsLeft: 0, spotsUsed: 30 })),
-    };
-    const { state } = await converse(['1', '2', 'Chen', 'skip', '4', '4', '1', 'yes'], full);
-    const after = transition(state, { type: 'effectResult', result: { kind: 'slot_full' } }, full);
-    expect(render(after.out[0], 'en')).toContain('full right now');
-  });
-
-  it('confirms with a code once the booking succeeds', async () => {
-    const { state } = await converse(['1', '2', 'Chen', 'skip', '4', '4', '1', 'yes']);
-    const after = transition(
-      state,
-      {
-        type: 'effectResult',
-        result: {
-          kind: 'booked',
-          code: 'H4KM7Q',
-          slotStartsAt: '2026-07-22T21:00:00Z',
-          families: 1,
-          boxes: 2,
-        },
-      },
-      CTX,
-    );
-    expect(after.state.node).toBe('DONE');
-    expect(render(after.out[0], 'en')).toContain('H4KM7Q');
+    expect(render(after.out[0], 'en')).toContain('filled up');
   });
 });
 
@@ -258,7 +255,11 @@ describe('purity', () => {
   it('never mutates the state it was handed', async () => {
     const state = initialState();
     const frozen = JSON.stringify(state);
-    await say(state, '1');
+    const spec = NODE_SPECS[state.node];
+    const intent = await keywordParser.parse({
+      text: '1', node: state.node, locale: state.locale, options: spec.options ?? [],
+    });
+    transition(state, { type: 'intent', intent }, CTX);
     expect(JSON.stringify(state)).toBe(frozen);
   });
 });

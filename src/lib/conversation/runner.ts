@@ -7,6 +7,7 @@ import type { MessageSpec } from '@/lib/i18n/types';
 import { listOpenSlots } from '@/lib/db/repos/slots';
 import { listTiers } from '@/lib/db/repos/tiers';
 import { bookPickup } from '@/lib/db/repos/pickups';
+import { findFamilyByPhone } from '@/lib/db/repos/families';
 import { upsertContact } from '@/lib/db/repos/contacts';
 import {
   getOrCreateSession,
@@ -32,7 +33,18 @@ async function runEffect(
   state: SessionState,
   ctx: TransitionContext,
   address: Address,
-): Promise<{ result: EffectResult; contactId: string }> {
+): Promise<{ result: EffectResult; contactId: string | null }> {
+  if (effect.type === 'LOOKUP_FAMILY') {
+    // A read, so no contact row is needed yet — don't create one just to answer a question.
+    const known = await findFamilyByPhone(effect.phone);
+    return {
+      contactId: null,
+      result: known
+        ? { kind: 'family_known', phone: effect.phone, size: known.size, allergies: known.allergies }
+        : { kind: 'family_new', phone: effect.phone },
+    };
+  }
+
   const contact = await upsertContact(address.channel, address.externalId, state.locale);
 
   const slot = ctx.slots.find((s) => s.id === effect.slotId);
@@ -102,14 +114,21 @@ export async function processInbound(
     specs.push(...step.out);
 
     let contactId: string | null = session.contactId;
-    for (const effect of step.effects) {
+    // A queue, not a for-of: re-entering the machine can itself request more work, and this
+    // is how the flow reaches a settled state before anything is persisted or sent.
+    const pending: Effect[] = [...step.effects];
+    let guard = 0;
+    while (pending.length) {
+      if (++guard > 8) throw new Error('Effect loop did not settle');
+      const effect = pending.shift()!;
       const { result, contactId: cid } = await runEffect(effect, state, ctx, address);
-      contactId = cid;
+      if (cid) contactId = cid;
       // Re-enter the machine with what actually happened. This is how a pure reducer copes
-      // with a race it cannot predict — it never guesses whether the spot was still free.
+      // with facts it cannot know — whether the spot was still free, whether a phone is on file.
       const after = transition(state, { type: 'effectResult', result }, ctx);
       state = after.state;
       specs.push(...after.out);
+      pending.push(...after.effects);
     }
 
     const saved = await saveSession(session.id, state, session.version, contactId);

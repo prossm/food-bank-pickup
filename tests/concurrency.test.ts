@@ -10,9 +10,10 @@ const TIERS: FoodTier[] = [
   { id: 'large', minSize: 6, maxSize: null, boxes: 3, labelKey: 'tier.large' },
 ];
 
-const family = (name: string, size: number): FamilyDraft => ({
-  name,
-  phone: null,
+let phoneSeq = 0;
+/** Households are identified by phone now, so each test household needs a distinct one. */
+const family = (size: number, phone?: string): FamilyDraft => ({
+  phone: phone ?? `+1212555${String(1000 + phoneSeq++).slice(-4)}`,
   size,
   allergies: [],
 });
@@ -48,7 +49,7 @@ describe('claimSpot concurrency', () => {
           slotId,
           contactId: c.id,
           role: 'family',
-          families: [family('Racer', 4)],
+          families: [family(4)],
           tiers: TIERS,
         }),
       ),
@@ -82,7 +83,7 @@ describe('claimSpot concurrency', () => {
           slotId,
           contactId: c.id,
           role: 'family',
-          families: [family('Sprinter', 2)],
+          families: [family(2)],
           tiers: TIERS,
         }),
       ),
@@ -96,14 +97,15 @@ describe('claimSpot concurrency', () => {
     const slotId = await makeSlot(30);
     const contact = await upsertContact('web', 'bad-actor', 'en');
 
-    // A name past the 120-char CHECK fails AFTER the spot has been claimed. If the rollback
+    // A household of 31 passes tierFor (the top tier is unbounded) but violates the
+    // families size CHECK, so it fails AFTER the spot has been claimed. If the rollback
     // didn't release the increment, this slot would leak a spot nobody holds.
     await expect(
       bookPickup({
         slotId,
         contactId: contact.id,
         role: 'family',
-        families: [family('x'.repeat(200), 4)],
+        families: [family(31)],
         tiers: TIERS,
       }),
     ).rejects.toThrow();
@@ -123,7 +125,7 @@ describe('claimSpot concurrency', () => {
         slotId,
         contactId: contact.id,
         role: 'family',
-        families: [family('Chen', 4)],
+        families: [family(4)],
         tiers: TIERS,
       });
 
@@ -147,7 +149,7 @@ describe('claimSpot concurrency', () => {
       slotId,
       contactId: contact.id,
       role: 'family',
-      families: [family('Late', 3)],
+      families: [family(3)],
       tiers: TIERS,
     });
     expect(res.kind).toBe('slot_full');
@@ -163,13 +165,7 @@ describe('spots vs people', () => {
       slotId,
       contactId: contact.id,
       role: 'ambassador',
-      families: [
-        family('Alvarez', 4),
-        family('Chen', 6),
-        family('Diallo', 2),
-        family('Nguyen', 5),
-        family('Okafor', 5),
-      ],
+      families: [family(4), family(6), family(2), family(5), family(5)],
       tiers: TIERS,
     });
     expect(res.kind).toBe('booked');
@@ -199,11 +195,16 @@ describe('spots vs people', () => {
       slotId,
       contactId: contact.id,
       role: 'family',
-      families: [family('Growing', 3)],
+      families: [family(3, '+12125559999')],
       tiers: TIERS,
     });
 
-    await query(`UPDATE families SET family_size = 9 WHERE name = 'Growing'`);
+    const edited = await query(
+      `UPDATE families SET family_size = 9 WHERE phone_e164 = '+12125559999' RETURNING id`,
+    );
+    // Guards the test itself: if the household weren't found, the assertions below would
+    // pass against a value nothing had tried to change.
+    expect(edited).toHaveLength(1);
 
     const [{ family_size_snapshot, food_tier_snapshot }] = await query<{
       family_size_snapshot: number;
@@ -223,7 +224,7 @@ describe('cancelPickup', () => {
       slotId,
       contactId: contact.id,
       role: 'family',
-      families: [family('Bye', 3)],
+      families: [family(3)],
       tiers: TIERS,
     });
     if (res.kind !== 'booked') throw new Error('setup failed');

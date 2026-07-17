@@ -38,8 +38,9 @@ export const NODE_SPECS: Record<Node, NodeSpec> = {
   },
   AMBASSADOR_OWN_HOUSEHOLD: { input: 'yesno' },
   FAMILY_COUNT: { input: 'number' },
-  FAMILY_NAME: { input: 'text' },
-  FAMILY_PHONE: { input: 'phone' },
+  // 'text', not 'phone': the phone input kind existed only to allow SKIP, and a household's
+  // number is now its identity — there is nothing to dedupe on without it.
+  FAMILY_PHONE: { input: 'text' },
   FAMILY_SIZE: { input: 'number' },
   FAMILY_ALLERGIES: {
     input: 'select',

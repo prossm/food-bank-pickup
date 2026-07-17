@@ -1,5 +1,6 @@
 import type { Catalog } from '../types';
 import { formatSlot } from '../format';
+import { formatPhone } from '@/lib/domain/phone';
 
 const allergyName: Record<string, string> = {
   gluten_free: 'gluten free',
@@ -32,18 +33,16 @@ export const en: Catalog = {
       ? 'How many OTHER families are you picking up for, besides your own? (Reply with a number)'
       : 'How many families are you picking up for? (Reply with a number)',
 
-  'prompt.family_name': ({ position, total }) =>
-    `Family ${position} of ${total}: what's their last name?`,
+  'prompt.family_phone': ({ position, total }) =>
+    `Family ${position} of ${total}: what's their phone number?`,
 
-  'prompt.family_name_self': () => "What's your last name?",
+  'prompt.family_phone_self': () => "What's your phone number?",
 
-  'prompt.family_phone': ({ name }) =>
-    `Phone number for ${name}? (Reply SKIP if you don't have one)`,
+  'prompt.family_size': ({ phone }) =>
+    `How many people are in the ${formatPhone(phone)} household?`,
 
-  'prompt.family_size': ({ name }) => `How many people are in the ${name} household?`,
-
-  'prompt.family_allergies': ({ name }) =>
-    `Any food restrictions for ${name}?\n` +
+  'prompt.family_allergies': ({ phone }) =>
+    `Any food restrictions for ${formatPhone(phone)}?\n` +
     '1 — Gluten free\n' +
     '2 — Dairy free\n' +
     '3 — Both\n' +
@@ -66,7 +65,7 @@ export const en: Catalog = {
     families
       .map(
         (f) =>
-          `• ${f.name}${f.isSelf ? ' (you)' : ''} — ${f.size} ${
+          `• ${formatPhone(f.phone)}${f.isSelf ? ' (you)' : ''} — ${f.size} ${
             f.size === 1 ? 'person' : 'people'
           }, ${allergyList(f.allergies)}`,
       )
@@ -103,15 +102,17 @@ export const en: Catalog = {
 
   'msg.done_hint': () => 'Reply RESTART if you need to sign up someone else.',
 
+  'msg.family_recognized': () => "Got it — that household is already on file. ✓",
+
   'err.unknown': () => "Sorry, I didn't catch that.",
   'err.need_number': () => 'Please reply with a number.',
   'err.family_count_range': ({ max }) =>
     `Please reply with a number between 1 and ${max}. ` +
     `For more than ${max} families, please call the food bank.`,
   'err.size_range': () => 'Please reply with a household size between 1 and 30.',
-  'err.name_length': () => 'Please reply with a name (under 120 characters).',
-  'err.phone_invalid': () =>
-    "That doesn't look like a phone number. Try again, or reply SKIP.",
+  'err.phone_invalid': () => "That doesn't look like a phone number. Please try again.",
+  'err.phone_duplicate': () =>
+    "You've already added that phone number. Please use a different one.",
   'err.pick_listed_slot': () => 'Please reply with the number next to a time above.',
 
   'allergy.gluten_free': () => 'gluten free',

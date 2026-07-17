@@ -10,7 +10,8 @@ export interface SlotOption {
 export interface ConfirmSummary {
   role: PickupRole;
   slotStartsAt: string;
-  families: { name: string; size: number; allergies: AllergyKind[]; isSelf?: boolean }[];
+  /** Households are identified by phone now — names are the admin's to fill in. */
+  families: { phone: string; size: number; allergies: AllergyKind[]; isSelf?: boolean }[];
   boxes: number;
 }
 
@@ -26,11 +27,10 @@ export interface MessageParams {
   'prompt.role_select': undefined;
   'prompt.ambassador_own_household': undefined;
   'prompt.family_count': { includeSelf: boolean };
-  'prompt.family_name': { position: number; total: number };
-  'prompt.family_name_self': undefined;
-  'prompt.family_phone': { name: string };
-  'prompt.family_size': { name: string };
-  'prompt.family_allergies': { name: string };
+  'prompt.family_phone': { position: number; total: number };
+  'prompt.family_phone_self': undefined;
+  'prompt.family_size': { phone: string };
+  'prompt.family_allergies': { phone: string };
   'prompt.slot_select': { slots: SlotOption[] };
   'prompt.confirm': ConfirmSummary;
 
@@ -42,13 +42,15 @@ export interface MessageParams {
   'msg.restarted': undefined;
   'msg.reminder': { slotStartsAt: string; code: string };
   'msg.done_hint': undefined;
+  /** Deliberately carries no household details — see handleEffectResult. */
+  'msg.family_recognized': undefined;
 
   'err.unknown': undefined;
   'err.need_number': undefined;
   'err.family_count_range': { max: number };
   'err.size_range': undefined;
-  'err.name_length': undefined;
   'err.phone_invalid': undefined;
+  'err.phone_duplicate': undefined;
   'err.pick_listed_slot': undefined;
 
   'allergy.gluten_free': undefined;

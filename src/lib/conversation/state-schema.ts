@@ -5,18 +5,21 @@ import { initialState } from './types';
 const allergySchema = z.enum(['gluten_free', 'dairy_free']);
 
 const familySchema = z.object({
-  name: z.string(),
-  phone: z.string().nullable(),
+  phone: z.string(),
   size: z.number().int(),
   allergies: z.array(allergySchema),
   isSelf: z.boolean().optional(),
+  known: z.boolean().optional(),
 });
 
 export const sessionStateSchema = z.object({
-  v: z.literal(1),
+  // v1 sessions (household names, optional phone, a FAMILY_NAME node) fail this literal and
+  // are reset rather than fed to a machine that no longer has those states. Anyone mid-flow
+  // across the deploy starts over — which is the intended trade, and why the reset is polite.
+  v: z.literal(2),
   node: z.enum([
     'LANG_SELECT', 'ROLE_SELECT', 'AMBASSADOR_OWN_HOUSEHOLD', 'FAMILY_COUNT',
-    'FAMILY_NAME', 'FAMILY_PHONE', 'FAMILY_SIZE', 'FAMILY_ALLERGIES',
+    'FAMILY_PHONE', 'FAMILY_SIZE', 'FAMILY_ALLERGIES',
     'SLOT_SELECT', 'CONFIRM', 'DONE',
   ]),
   locale: z.enum(['en', 'es', 'zh']),
@@ -26,8 +29,7 @@ export const sessionStateSchema = z.object({
   cursor: z.number().int(),
   families: z.array(familySchema),
   partial: z.object({
-    name: z.string().optional(),
-    phone: z.string().nullable().optional(),
+    phone: z.string().optional(),
     size: z.number().int().optional(),
     allergies: z.array(allergySchema).optional(),
   }),

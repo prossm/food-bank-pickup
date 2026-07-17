@@ -6,7 +6,6 @@ export type Node =
   | 'ROLE_SELECT'
   | 'AMBASSADOR_OWN_HOUSEHOLD'
   | 'FAMILY_COUNT'
-  | 'FAMILY_NAME'
   | 'FAMILY_PHONE'
   | 'FAMILY_SIZE'
   | 'FAMILY_ALLERGIES'
@@ -49,8 +48,11 @@ export interface IntentParser {
 }
 
 export interface SessionState {
-  /** Bumped when the shape changes; old sessions mid-flow are reset rather than crashed. */
-  v: 1;
+  /**
+   * Bumped when the shape changes; old sessions mid-flow are reset rather than crashed.
+   * v2 dropped household names in favour of phone as the identity.
+   */
+  v: 2;
   node: Node;
   locale: Locale;
   role: PickupRole | null;
@@ -58,18 +60,28 @@ export interface SessionState {
   familyCount: number | null;
   cursor: number;
   families: FamilyDraft[];
-  partial: { name?: string; phone?: string | null; size?: number; allergies?: AllergyKind[] };
+  partial: { phone?: string; size?: number; allergies?: AllergyKind[] };
   selectedSlotId: string | null;
   confirmation: { code: string; slotStartsAt: string } | null;
 }
 
-/** A request for the runner to do I/O. The machine only describes it. */
-export type Effect = { type: 'BOOK'; slotId: string };
+/**
+ * A request for the runner to do I/O. The machine only describes it.
+ *
+ * LOOKUP_FAMILY exists because "is this phone already on file?" is a database question and
+ * the machine is pure. It asks, the runner answers, and the machine reacts to the answer —
+ * the same shape that lets it cope with losing the race for a spot.
+ */
+export type Effect =
+  | { type: 'BOOK'; slotId: string }
+  | { type: 'LOOKUP_FAMILY'; phone: string };
 
 export type EffectResult =
   | { kind: 'booked'; code: string; slotStartsAt: string; families: number; boxes: number }
   | { kind: 'slot_full' }
-  | { kind: 'already_booked' };
+  | { kind: 'already_booked' }
+  | { kind: 'family_known'; phone: string; size: number; allergies: AllergyKind[] }
+  | { kind: 'family_new'; phone: string };
 
 export type Event =
   | { type: 'intent'; intent: Intent }
@@ -89,11 +101,10 @@ export interface TransitionOutput {
 
 export const MAX_FAMILIES_PER_AMBASSADOR = 10;
 export const MAX_HOUSEHOLD_SIZE = 30;
-export const MAX_NAME_LENGTH = 120;
 
 export function initialState(): SessionState {
   return {
-    v: 1,
+    v: 2,
     node: 'LANG_SELECT',
     locale: 'en',
     role: null,

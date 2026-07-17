@@ -7,14 +7,26 @@ v1 **simulates** the SMS thread as a web chat so the flow can be tested without 
 The conversation logic is deliberately transport-agnostic: adding Twilio means adding one
 route and one transport file, with no changes to the conversation itself.
 
-## The one idea to keep straight
+## Two ideas to keep straight
 
-**A spot is one pickup — one car. Never a person, never a family.**
+**1. A spot is one pickup — one car. Never a person, never a family.**
 
 An ambassador collecting for five families takes **one** spot and **five** families' worth of
 food. Capacity and food volume are different numbers and are never derived from each other.
 The `slot_load` view exposes them as separately named columns (`spots_used` vs `people_served`)
 specifically so nothing has to guess.
+
+**2. A household is its phone number, not its name.**
+
+An ambassador knows the numbers of the people they deliver to, not their surnames — so the
+chat never asks for a name, and dedupes on phone instead. The same household signing up week
+after week is one row, not fifty. Names are entered by **staff**, and `upsertFamilyByPhone`
+must never write that column.
+
+A known number **silently reuses** its stored size and restrictions and skips both questions,
+which takes an ambassador's thread from six answers to two. The cost is that a size can go
+stale with no way to correct it from the chat, so `families.size_confirmed_at` records when a
+human last confirmed it and `/admin` flags anything older than 180 days.
 
 ## Running it locally
 
@@ -100,16 +112,26 @@ insert on it; the machine has a `slot_full → SLOT_SELECT` edge for losing the 
    live in the `food_tiers` table, so correcting them is an `UPDATE`, not a deploy. A no-overlap
    constraint and a test covering sizes 1–20 keep gaps from appearing silently.
 2. **Cap on families per ambassador?** Currently 10 (`MAX_FAMILIES_PER_AMBASSADOR`).
-3. **Do we collect each family's phone on ambassador pickups?** Consent implications once real
-   SMS is live.
-4. **Waitlist when a slot is full**, or just offer the other time?
-5. The help message contains a **placeholder phone number** — needs the real one.
+3. **Waitlist when a slot is full**, or just offer the other time?
+4. **Two households, one phone** (a shared line, or a carer's number) currently collide into a
+   single record, because phone is the identity. Rare, but it would quietly under-feed one of
+   them. Needs a decision if it's a real scenario here.
+5. **How do staff learn a name?** The chat never asks and the ambassador may not know it.
+   Presumably at pickup — worth confirming, since it's the only path into that column.
+6. The help message contains a **placeholder phone number** — needs the real one.
 
-## Not in v1
+## Not in v1 — read this before demoing
 
-Mandarin (the catalog is typed and ready — `zh` is one file), reminder cron, cancellation flow
-(the decrement SQL exists and is tested; it just isn't wired to the conversation), no-show
-tracking, and real Twilio.
+Two gaps that matter, in order:
 
-**`/admin` has no auth and is currently public.** That must be fixed before this holds real
-names and phone numbers.
+1. **Staff cannot enter household names.** Names are supposed to come from the admin, but
+   `/admin` is read-only, so every household reads `unnamed` forever. The column, the roster
+   display, and the "never overwrite a staff name" guard are all in place — the editing UI is
+   simply not built. This is the next thing to do.
+2. **`/admin` has no auth.** It lists phone numbers, household sizes, and dietary needs. It's
+   currently reachable by anyone with the URL. Deployment Protection is the only thing in
+   front of it today, and turning that off to demo the chat exposes the roster too.
+
+Also absent: Mandarin (the catalog is typed and ready — `zh` is one file), reminder cron,
+cancellation flow (the decrement SQL exists and is tested; it just isn't wired to the
+conversation), no-show tracking, and real Twilio.

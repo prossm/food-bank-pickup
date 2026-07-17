@@ -1,11 +1,10 @@
-import type { AllergyKind, Locale, PickupRole } from '@/lib/domain/types';
+import type { AllergyKind, FamilyDraft, Locale, PickupRole } from '@/lib/domain/types';
 import type { MessageSpec } from '@/lib/i18n/types';
 import { tierFor } from '@/lib/domain/food-tiers';
 import { isValidPhone, toE164 } from '@/lib/domain/phone';
 import {
   MAX_FAMILIES_PER_AMBASSADOR,
   MAX_HOUSEHOLD_SIZE,
-  MAX_NAME_LENGTH,
   initialState,
   type Event,
   type Node,
@@ -70,7 +69,7 @@ export function transition(
           includeSelf: true,
           familyCount: 1,
           cursor: 0,
-          node: 'FAMILY_NAME',
+          node: 'FAMILY_PHONE',
         };
         return { state: next, effects: [], out: [promptFor(next, ctx)] };
       }
@@ -105,42 +104,27 @@ export function transition(
           ],
         };
       }
-      const next: SessionState = { ...state, familyCount: total, cursor: 0, node: 'FAMILY_NAME' };
-      return { state: next, effects: [], out: [promptFor(next, ctx)] };
-    }
-
-    case 'FAMILY_NAME': {
-      if (intent.kind !== 'text' || !intent.value) return reprompt(state, ctx);
-      if (intent.value.length > MAX_NAME_LENGTH) {
-        return { state, effects: [], out: [{ key: 'err.name_length' }, promptFor(state, ctx)] };
-      }
-      const next: SessionState = {
-        ...state,
-        partial: { ...state.partial, name: intent.value },
-        node: 'FAMILY_PHONE',
-      };
+      const next: SessionState = { ...state, familyCount: total, cursor: 0, node: 'FAMILY_PHONE' };
       return { state: next, effects: [], out: [promptFor(next, ctx)] };
     }
 
     case 'FAMILY_PHONE': {
-      if (intent.kind === 'skip') {
-        const next: SessionState = {
-          ...state,
-          partial: { ...state.partial, phone: null },
-          node: 'FAMILY_SIZE',
-        };
-        return { state: next, effects: [], out: [promptFor(next, ctx)] };
-      }
       if (intent.kind !== 'text') return reprompt(state, ctx);
       if (!isValidPhone(intent.value)) {
         return { state, effects: [], out: [{ key: 'err.phone_invalid' }, promptFor(state, ctx)] };
       }
-      const next: SessionState = {
-        ...state,
-        partial: { ...state.partial, phone: toE164(intent.value) },
-        node: 'FAMILY_SIZE',
-      };
-      return { state: next, effects: [], out: [promptFor(next, ctx)] };
+      const phone = toE164(intent.value)!;
+
+      // Reject a number already given earlier in THIS conversation. Without it, an ambassador
+      // who fat-fingers the same number twice books "two" households that are one row, and the
+      // second silently overwrites the first's answers — they'd leave with too little food.
+      if (state.families.some((f) => f.phone === phone)) {
+        return { state, effects: [], out: [{ key: 'err.phone_duplicate' }, promptFor(state, ctx)] };
+      }
+
+      // Ask the runner whether this household is already on file. The machine can't know.
+      const next: SessionState = { ...state, partial: { ...state.partial, phone } };
+      return { state: next, effects: [{ type: 'LOOKUP_FAMILY', phone }], out: [] };
     }
 
     case 'FAMILY_SIZE': {
@@ -167,36 +151,12 @@ export function transition(
             ? []
             : [intent.value as AllergyKind];
 
-      const families = [
-        ...state.families,
-        {
-          name: state.partial.name!,
-          phone: state.partial.phone ?? null,
-          size: state.partial.size!,
-          allergies,
-          // Position 0 is the ambassador's own household when they said yes; for a plain
-          // family signup the single household is always theirs.
-          isSelf: state.includeSelf && state.cursor === 0,
-        },
-      ];
-
-      const done = families.length >= (state.familyCount ?? 1);
-      if (!done) {
-        const next: SessionState = {
-          ...state,
-          families,
-          partial: {},
-          cursor: state.cursor + 1,
-          node: 'FAMILY_NAME',
-        };
-        return { state: next, effects: [], out: [promptFor(next, ctx)] };
-      }
-
-      if (ctx.slots.length === 0) {
-        return { state: { ...state, families, partial: {} }, effects: [], out: [{ key: 'msg.no_slots' }] };
-      }
-      const next: SessionState = { ...state, families, partial: {}, node: 'SLOT_SELECT' };
-      return { state: next, effects: [], out: [promptFor(next, ctx)] };
+      return addFamily(state, ctx, {
+        phone: state.partial.phone!,
+        size: state.partial.size!,
+        allergies,
+        known: false,
+      });
     }
 
     case 'SLOT_SELECT': {
@@ -227,12 +187,74 @@ export function transition(
   }
 }
 
+/**
+ * Appends a completed household and moves on — to the next family, or to slot selection.
+ * Shared by both paths into a household: answered questions, and recognised by phone.
+ */
+function addFamily(
+  state: SessionState,
+  ctx: TransitionContext,
+  family: Omit<FamilyDraft, 'isSelf'>,
+): TransitionOutput {
+  const families: FamilyDraft[] = [
+    ...state.families,
+    {
+      ...family,
+      // Position 0 is the ambassador's own household when they said yes; for a plain family
+      // signup the single household is always theirs.
+      isSelf: state.includeSelf && state.cursor === 0,
+    },
+  ];
+
+  const done = families.length >= (state.familyCount ?? 1);
+  if (!done) {
+    const next: SessionState = {
+      ...state,
+      families,
+      partial: {},
+      cursor: state.cursor + 1,
+      node: 'FAMILY_PHONE',
+    };
+    return { state: next, effects: [], out: [promptFor(next, ctx)] };
+  }
+
+  if (ctx.slots.length === 0) {
+    return {
+      state: { ...state, families, partial: {}, node: 'SLOT_SELECT' },
+      effects: [],
+      out: [{ key: 'msg.no_slots' }],
+    };
+  }
+  const next: SessionState = { ...state, families, partial: {}, node: 'SLOT_SELECT' };
+  return { state: next, effects: [], out: [promptFor(next, ctx)] };
+}
+
 function handleEffectResult(
   state: SessionState,
   result: import('./types').EffectResult,
   ctx: TransitionContext,
 ): TransitionOutput {
   switch (result.kind) {
+    // Already on file: reuse the stored size and restrictions, skip both questions.
+    // Acknowledged rather than done in silence — otherwise two questions vanish with no
+    // explanation and the ambassador wonders what they missed. The ack deliberately omits
+    // the household's details, since whoever holds this phone shouldn't learn them by
+    // guessing numbers.
+    case 'family_known': {
+      const step = addFamily(state, ctx, {
+        phone: result.phone,
+        size: result.size,
+        allergies: result.allergies,
+        known: true,
+      });
+      return { ...step, out: [{ key: 'msg.family_recognized' }, ...step.out] };
+    }
+
+    case 'family_new': {
+      const next: SessionState = { ...state, node: 'FAMILY_SIZE' };
+      return { state: next, effects: [], out: [promptFor(next, ctx)] };
+    }
+
     case 'booked': {
       const next: SessionState = {
         ...state,
@@ -280,29 +302,30 @@ function stepBack(state: SessionState): SessionState {
       return { ...state, node: 'ROLE_SELECT' };
     case 'FAMILY_COUNT':
       return { ...state, node: 'AMBASSADOR_OWN_HOUSEHOLD' };
-    case 'FAMILY_NAME': {
+    case 'FAMILY_PHONE': {
       if (state.cursor > 0) {
         // Re-open the previous household for editing rather than stranding the user.
         const families = state.families.slice(0, -1);
-        return { ...state, families, cursor: state.cursor - 1, partial: {}, node: 'FAMILY_NAME' };
+        return { ...state, families, cursor: state.cursor - 1, partial: {}, node: 'FAMILY_PHONE' };
       }
       return state.role === 'ambassador'
         ? { ...state, node: 'FAMILY_COUNT' }
         : { ...state, node: 'ROLE_SELECT' };
     }
-    case 'FAMILY_PHONE':
-      return { ...state, node: 'FAMILY_NAME' };
     case 'FAMILY_SIZE':
-      return { ...state, node: 'FAMILY_PHONE' };
+      return { ...state, partial: {}, node: 'FAMILY_PHONE' };
     case 'FAMILY_ALLERGIES':
       return { ...state, node: 'FAMILY_SIZE' };
     case 'SLOT_SELECT': {
+      // Re-open the last household. A recognised one has no questions to go back to, so it
+      // rewinds to its phone prompt; otherwise back to its restrictions answer.
+      const last = state.families.at(-1);
       const families = state.families.slice(0, -1);
       return {
         ...state,
         families,
-        cursor: Math.max(0, state.cursor),
-        node: 'FAMILY_ALLERGIES',
+        partial: last && !last.known ? { phone: last.phone, size: last.size } : {},
+        node: last?.known ? 'FAMILY_PHONE' : 'FAMILY_ALLERGIES',
       };
     }
     case 'CONFIRM':
@@ -327,19 +350,17 @@ export function promptFor(state: SessionState, ctx: TransitionContext): MessageS
       return { key: 'prompt.ambassador_own_household' };
     case 'FAMILY_COUNT':
       return { key: 'prompt.family_count', params: { includeSelf: state.includeSelf } };
-    case 'FAMILY_NAME':
+    case 'FAMILY_PHONE':
       return state.includeSelf && state.cursor === 0
-        ? { key: 'prompt.family_name_self' }
+        ? { key: 'prompt.family_phone_self' }
         : {
-            key: 'prompt.family_name',
+            key: 'prompt.family_phone',
             params: { position: state.cursor + 1, total: state.familyCount ?? 1 },
           };
-    case 'FAMILY_PHONE':
-      return { key: 'prompt.family_phone', params: { name: state.partial.name ?? '' } };
     case 'FAMILY_SIZE':
-      return { key: 'prompt.family_size', params: { name: state.partial.name ?? '' } };
+      return { key: 'prompt.family_size', params: { phone: state.partial.phone ?? '' } };
     case 'FAMILY_ALLERGIES':
-      return { key: 'prompt.family_allergies', params: { name: state.partial.name ?? '' } };
+      return { key: 'prompt.family_allergies', params: { phone: state.partial.phone ?? '' } };
     case 'SLOT_SELECT':
       return {
         key: 'prompt.slot_select',
@@ -359,7 +380,7 @@ export function promptFor(state: SessionState, ctx: TransitionContext): MessageS
           role: state.role ?? 'family',
           slotStartsAt: slot?.startsAt.toISOString() ?? '',
           families: state.families.map((f) => ({
-            name: f.name,
+            phone: f.phone,
             size: f.size,
             allergies: f.allergies,
             isSelf: f.isSelf,

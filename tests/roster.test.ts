@@ -44,9 +44,7 @@ describe('roster totals', () => {
       slotId,
       contactId: contact.id,
       role: 'family',
-      families: [
-        { name: 'Celiac', phone: null, size: 4, allergies: ['gluten_free', 'dairy_free'] },
-      ],
+      families: [{ phone: '+12125550100', size: 4, allergies: ['gluten_free', 'dairy_free'] }],
       tiers: TIERS,
     });
 
@@ -65,9 +63,9 @@ describe('roster totals', () => {
       contactId: contact.id,
       role: 'ambassador',
       families: [
-        { name: 'Alvarez', phone: null, size: 4, allergies: ['gluten_free', 'dairy_free'] },
-        { name: 'Chen', phone: null, size: 6, allergies: ['dairy_free'] },
-        { name: 'Diallo', phone: null, size: 2, allergies: [] },
+        { phone: '+12125550100', size: 4, allergies: ['gluten_free', 'dairy_free'] },
+        { phone: '+12125550187', size: 6, allergies: ['dairy_free'] },
+        { phone: '+12125550199', size: 2, allergies: [] },
       ],
       tiers: TIERS,
     });
@@ -77,7 +75,11 @@ describe('roster totals', () => {
     expect(row.families).toBe(3);
     expect(row.people).toBe(12); // 4 + 6 + 2
     expect(row.boxes).toBe(6); // 2 + 3 + 1
-    expect(row.householdNames.split(', ').sort()).toEqual(['Alvarez', 'Chen', 'Diallo']);
+    expect(row.households.map((h) => h.phone)).toEqual([
+      '+12125550100', '+12125550187', '+12125550199',
+    ]);
+    // Names are staff's to fill in; the chat never asked, so they start empty.
+    expect(row.households.every((h) => h.name === null)).toBe(true);
     // Two households need dairy free; staff should see the kind once, not once per household.
     expect(row.allergies).toBe('dairy_free, gluten_free');
   });
@@ -90,7 +92,7 @@ describe('roster totals', () => {
       slotId,
       contactId: contact.id,
       role: 'family',
-      families: [{ name: 'Gone', phone: null, size: 3, allergies: [] }],
+      families: [{ phone: '+12125550100', size: 3, allergies: [] }],
       tiers: TIERS,
     });
     if (res.kind !== 'booked') throw new Error('setup failed');

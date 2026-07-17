@@ -1,6 +1,7 @@
 import type { PoolClient } from 'pg';
 import { transaction } from '../client';
 import { tierFor } from '@/lib/domain/food-tiers';
+import { upsertFamilyByPhone, setAllergies } from './families';
 import type { FamilyDraft, FoodTier, PickupRole } from '@/lib/domain/types';
 
 export type BookResult =
@@ -72,9 +73,9 @@ export async function bookPickup(args: {
 }): Promise<BookResult> {
   const { slotId, contactId, role, families, tiers } = args;
 
-  // Resolve tiers BEFORE opening the transaction: tierFor throws on an uncovered household
+  // Validate tiers BEFORE opening the transaction: tierFor throws on an uncovered household
   // size, and it should fail without having burned a spot.
-  const resolved = families.map((f) => ({ draft: f, tier: tierFor(f.size, tiers) }));
+  families.forEach((f) => tierFor(f.size, tiers));
 
   try {
     return await transaction(async (tx) => {
@@ -82,27 +83,24 @@ export async function bookPickup(args: {
       const claimed = await claimSpot(tx, slotId, contactId, role, code);
       if (!claimed) return { kind: 'slot_full' as const };
 
-      for (const [i, { draft, tier }] of resolved.entries()) {
-        const fam = await tx.query<{ id: string }>(
-          `INSERT INTO families (name, phone_e164, family_size, created_by_contact_id)
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-          [draft.name, draft.phone, draft.size, contactId],
-        );
-        const familyId = fam.rows[0].id;
+      for (const [i, draft] of families.entries()) {
+        // Dedupe on phone: the same household signing up every week is one row, not fifty.
+        const fam = await upsertFamilyByPhone(tx, draft.phone, draft.size, contactId);
 
-        for (const kind of draft.allergies) {
-          await tx.query(
-            `INSERT INTO family_allergies (family_id, kind) VALUES ($1, $2)
-             ON CONFLICT DO NOTHING`,
-            [familyId, kind],
-          );
-        }
+        // Only a brand new household takes its restrictions from this conversation. For a
+        // known one the flow never asked, so `draft.allergies` is just an echo of what's
+        // already stored and re-writing it would be busywork at best.
+        if (fam.isNew) await setAllergies(tx, fam.id, draft.allergies);
 
+        // Snapshot from what the DATABASE holds, not the draft. If another conversation
+        // created this household between our lookup and now, its size is the real one, and
+        // the box we stage must match the row rather than our stale read.
+        const tier = tierFor(fam.size, tiers);
         await tx.query(
           `INSERT INTO pickup_families
              (pickup_id, family_id, position, family_size_snapshot, food_tier_snapshot)
            VALUES ($1, $2, $3, $4, $5)`,
-          [claimed.id, familyId, i + 1, draft.size, tier.id],
+          [claimed.id, fam.id, i + 1, fam.size, tier.id],
         );
       }
 
