@@ -1,7 +1,9 @@
+/**
+ * `zh` is declared but not yet offered: the DB enum and the state schema already accept it, so
+ * adding Mandarin is a catalog file plus a LANG_SELECT option, with no migration. Only locales
+ * present in i18n/render.ts's catalog map are reachable today.
+ */
 export type Locale = 'en' | 'es' | 'zh';
-
-/** Locales with a complete message catalog. Mandarin is deferred; see i18n/catalog. */
-export const ACTIVE_LOCALES: readonly Locale[] = ['en', 'es'] as const;
 
 export type PickupRole = 'ambassador' | 'family';
 

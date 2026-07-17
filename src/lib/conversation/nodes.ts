@@ -1,7 +1,7 @@
 import type { Node, Option } from './types';
 import type { SlotView } from '@/lib/domain/types';
 
-export type InputKind = 'select' | 'yesno' | 'number' | 'text' | 'phone';
+export type InputKind = 'select' | 'yesno' | 'number' | 'text';
 
 export interface NodeSpec {
   input: InputKind;
@@ -38,8 +38,8 @@ export const NODE_SPECS: Record<Node, NodeSpec> = {
   },
   AMBASSADOR_OWN_HOUSEHOLD: { input: 'yesno' },
   FAMILY_COUNT: { input: 'number' },
-  // 'text', not 'phone': the phone input kind existed only to allow SKIP, and a household's
-  // number is now its identity — there is nothing to dedupe on without it.
+  // A household's number is its identity, so this is a plain required text answer — there is
+  // nothing to dedupe on without one, and no way to skip it.
   FAMILY_PHONE: { input: 'text' },
   FAMILY_SIZE: { input: 'number' },
   FAMILY_ALLERGIES: {
@@ -64,7 +64,6 @@ export function slotOptions(slots: SlotView[]): Option[] {
 export const YES_KEYS = ['yes', 'y', 'yeah', 'yep', 'ok', 'okay', 'sure', 'si', 'sii',
                          'claro', 'correcto', 'confirmar', 'confirm', '1'];
 export const NO_KEYS = ['no', 'n', 'nope', 'nah', 'negativo', '2'];
-export const SKIP_KEYS = ['skip', 'omitir', 'saltar', 'none', 'ninguno', 'no tengo', 'no'];
 export const RESTART_KEYS = ['restart', 'start over', 'reiniciar', 'empezar de nuevo', 'reset'];
 export const HELP_KEYS = ['help', 'ayuda', 'info', 'socorro'];
 export const BACK_KEYS = ['back', 'atras', 'regresar', 'volver', 'undo'];

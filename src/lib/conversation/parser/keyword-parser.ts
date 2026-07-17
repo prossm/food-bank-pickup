@@ -1,5 +1,5 @@
 import type { Intent, IntentParser, ParseContext } from '../types';
-import { NODE_SPECS, YES_KEYS, NO_KEYS, SKIP_KEYS, RESTART_KEYS, HELP_KEYS, BACK_KEYS } from '../nodes';
+import { NODE_SPECS, YES_KEYS, NO_KEYS, RESTART_KEYS, HELP_KEYS, BACK_KEYS } from '../nodes';
 import { normalize, tidy, parseNumber } from './normalize';
 
 function matches(normalized: string, keys: string[]): boolean {
@@ -46,11 +46,6 @@ export class KeywordParser implements IntentParser {
       case 'number': {
         const value = parseNumber(raw);
         return value === null ? { kind: 'unknown', raw } : { kind: 'number', value };
-      }
-
-      case 'phone': {
-        if (matches(n, SKIP_KEYS)) return { kind: 'skip' };
-        return { kind: 'text', value: tidy(raw) };
       }
 
       case 'text': {

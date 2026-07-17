@@ -20,7 +20,6 @@ export type Intent =
   | { kind: 'number'; value: number }
   | { kind: 'yes' }
   | { kind: 'no' }
-  | { kind: 'skip' }
   | { kind: 'back' }
   | { kind: 'restart' }
   | { kind: 'help' }
