@@ -9,6 +9,7 @@
     "test": "vitest run",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
+    "admin:sql": "tsx scripts/admin-password.ts",
     "vercel-build": "npm run migrate && npm run seed && next build"
   },
   "dependencies": {

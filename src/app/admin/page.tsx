@@ -1,11 +1,18 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { slotRoster } from '@/lib/db/repos/slots';
 import { bookedPickups } from '@/lib/db/repos/roster';
 import { formatPhone } from '@/lib/domain/phone';
 import { FOOD_BANK_TZ } from '@/lib/i18n/format';
+import { requireAdmin } from '@/lib/auth/dal';
+import { logout } from './actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 function fmt(d: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -19,6 +26,10 @@ function fmt(d: Date): string {
 }
 
 export default async function AdminPage() {
+  // Before the roster is read, not alongside it: requireAdmin() redirects a signed-out
+  // visitor, and household phone numbers should never be fetched for one at all.
+  const admin = await requireAdmin();
+
   const [roster, rows] = await Promise.all([slotRoster(), bookedPickups()]);
   const upcoming = roster.filter((s) => s.startsAt > new Date());
 
@@ -29,9 +40,17 @@ export default async function AdminPage() {
           <h1 className="text-2xl font-semibold">Pickup roster</h1>
           <p className="text-sm text-neutral-500">Times shown in {FOOD_BANK_TZ}</p>
         </div>
-        <Link href="/chat" className="text-sm text-emerald-700 underline dark:text-emerald-500">
-          Back to chat
-        </Link>
+        <div className="flex items-baseline gap-4 text-sm">
+          <span className="text-neutral-500">{admin.email}</span>
+          <Link href="/chat" className="text-emerald-700 underline dark:text-emerald-500">
+            Back to chat
+          </Link>
+          <form action={logout}>
+            <button type="submit" className="text-neutral-500 underline hover:text-neutral-800 dark:hover:text-neutral-200">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
       <section className="mb-8 grid gap-3 sm:grid-cols-2">
