@@ -1,0 +1,298 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 1240" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrowDash" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1720" height="1240" fill="#f7f8fa"/>
+
+  <!-- Title -->
+  <text x="44" y="48" font-size="30" font-weight="700" fill="#0f172a">Food Bank Pickup Scheduler — Ecosystem Map</text>
+  <text x="46" y="76" font-size="15" fill="#64748b">v1 · Next.js 16 on Vercel · Postgres (Neon) · hand-rolled admin auth · SMS simulated as web chat, transport-agnostic by design</text>
+
+  <!-- Legend -->
+  <g font-size="12.5" fill="#334155">
+    <rect x="1276" y="30" width="400" height="72" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect x="1292" y="44" width="16" height="12" rx="3" fill="#fff7ed" stroke="#f59e0b"/><text x="1314" y="54">Actor / client</text>
+    <rect x="1292" y="66" width="16" height="12" rx="3" fill="#eff6ff" stroke="#3b82f6"/><text x="1314" y="76">Next.js surface (edge)</text>
+    <rect x="1292" y="86" width="16" height="12" rx="3" fill="#ecfdf5" stroke="#10b981"/><text x="1314" y="96">App core (pure + I/O)</text>
+    <rect x="1470" y="44" width="16" height="12" rx="3" fill="#fef2f2" stroke="#ef4444"/><text x="1492" y="54">Auth boundary</text>
+    <rect x="1470" y="66" width="16" height="12" rx="3" fill="#faf5ff" stroke="#a855f7"/><text x="1492" y="76">Data store</text>
+    <line x1="1472" y1="90" x2="1488" y2="90" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4"/><text x="1492" y="94">Future / manual</text>
+  </g>
+
+  <!-- ===================== VERCEL CONTAINER ===================== -->
+  <rect x="298" y="118" width="988" height="778" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2 4"/>
+  <text x="316" y="146" font-size="16" font-weight="700" fill="#334155">▲ Vercel  ·  Next.js 16 app  ·  Node.js runtime  ·  serverless</text>
+
+  <!-- ===================== ACTORS ===================== -->
+  <!-- A1 Ambassador -->
+  <g>
+    <rect x="40" y="176" width="212" height="86" rx="10" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="146" y="208" text-anchor="middle" font-size="15" font-weight="700" fill="#7c2d12">Ambassador / Family</text>
+    <text x="146" y="230" text-anchor="middle" font-size="12" fill="#9a5b2a">web browser</text>
+    <text x="146" y="248" text-anchor="middle" font-size="12" fill="#9a5b2a">signs up by "text" (chat)</text>
+  </g>
+  <!-- A2 Staff -->
+  <g>
+    <rect x="40" y="404" width="212" height="86" rx="10" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="146" y="436" text-anchor="middle" font-size="15" font-weight="700" fill="#7c2d12">Staff</text>
+    <text x="146" y="458" text-anchor="middle" font-size="12" fill="#9a5b2a">web browser</text>
+    <text x="146" y="476" text-anchor="middle" font-size="12" fill="#9a5b2a">reads the /admin roster</text>
+  </g>
+  <!-- A3 Developer -->
+  <g>
+    <rect x="40" y="600" width="212" height="86" rx="10" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="146" y="632" text-anchor="middle" font-size="15" font-weight="700" fill="#7c2d12">Developer / Operator</text>
+    <text x="146" y="654" text-anchor="middle" font-size="12" fill="#9a5b2a">laptop · terminal</text>
+    <text x="146" y="672" text-anchor="middle" font-size="12" fill="#9a5b2a">deploys · mints admins</text>
+  </g>
+
+  <!-- ===================== SURFACES (edge) ===================== -->
+  <!-- S_chat -->
+  <g>
+    <rect x="330" y="176" width="250" height="60" rx="9" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="455" y="201" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">/chat  page</text>
+    <text x="455" y="222" text-anchor="middle" font-size="11.5" fill="#3b6bb0">chat-thread.tsx (client)</text>
+  </g>
+  <!-- S_api -->
+  <g>
+    <rect x="330" y="256" width="250" height="60" rx="9" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="455" y="281" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">/api/chat  route</text>
+    <text x="455" y="302" text-anchor="middle" font-size="11.5" fill="#3b6bb0">GET · POST · DELETE (zod)</text>
+  </g>
+  <!-- S_proxy -->
+  <g>
+    <rect x="330" y="360" width="250" height="58" rx="9" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="455" y="384" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">proxy.ts  (middleware)</text>
+    <text x="455" y="405" text-anchor="middle" font-size="11.5" fill="#3b6bb0">cookie pre-filter · not the boundary</text>
+  </g>
+  <!-- S_admin -->
+  <g>
+    <rect x="330" y="440" width="250" height="58" rx="9" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="455" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">/admin  ·  /admin/login</text>
+    <text x="455" y="485" text-anchor="middle" font-size="11.5" fill="#3b6bb0">RSC pages (roster UI)</text>
+  </g>
+  <!-- S_action -->
+  <g>
+    <rect x="330" y="540" width="250" height="58" rx="9" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="455" y="564" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Server Actions</text>
+    <text x="455" y="585" text-anchor="middle" font-size="11.5" fill="#3b6bb0">login() · logout()</text>
+  </g>
+  <!-- S_future twilio -->
+  <g>
+    <rect x="330" y="800" width="250" height="58" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="455" y="824" text-anchor="middle" font-size="13.5" font-weight="700" fill="#64748b">Twilio SMS transport</text>
+    <text x="455" y="845" text-anchor="middle" font-size="11.5" fill="#94a3b8">future · one route + one file</text>
+  </g>
+
+  <!-- ===================== CORE ===================== -->
+  <!-- C_runner -->
+  <g>
+    <rect x="620" y="176" width="252" height="60" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="746" y="201" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">conversation / runner.ts</text>
+    <text x="746" y="222" text-anchor="middle" font-size="11.5" fill="#0b7a5b">the only I/O in the flow</text>
+  </g>
+  <!-- C_machine -->
+  <g>
+    <rect x="620" y="252" width="252" height="52" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="746" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">machine.ts · transition()</text>
+    <text x="746" y="293" text-anchor="middle" font-size="11.5" fill="#0b7a5b">PURE reducer — no db, clock, net</text>
+  </g>
+  <!-- C_parse -->
+  <g>
+    <rect x="620" y="320" width="252" height="52" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="746" y="342" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">parser · nodes · i18n</text>
+    <text x="746" y="361" text-anchor="middle" font-size="11.5" fill="#0b7a5b">keyword parser → Intent · en / es</text>
+  </g>
+  <!-- C_dal (auth boundary) -->
+  <g>
+    <rect x="620" y="440" width="252" height="58" rx="9" fill="#fef2f2" stroke="#ef4444" stroke-width="2"/>
+    <text x="746" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#7f1d1d">auth / dal.ts · requireAdmin()</text>
+    <text x="746" y="485" text-anchor="middle" font-size="11.5" fill="#b03a3a">THE security boundary · validates token</text>
+  </g>
+  <!-- C_sess -->
+  <g>
+    <rect x="620" y="540" width="252" height="58" rx="9" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+    <text x="746" y="564" text-anchor="middle" font-size="14" font-weight="700" fill="#7f1d1d">auth / session · password</text>
+    <text x="746" y="585" text-anchor="middle" font-size="11.5" fill="#b03a3a">scrypt hash · 12h session cookie</text>
+  </g>
+
+  <!-- ===================== REPOS ===================== -->
+  <!-- R_chat -->
+  <g>
+    <rect x="910" y="176" width="256" height="128" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="1038" y="200" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">db / repos  (booking)</text>
+    <text x="1038" y="222" text-anchor="middle" font-size="11.5" fill="#0b7a5b">sessions · contacts · families</text>
+    <text x="1038" y="240" text-anchor="middle" font-size="11.5" fill="#0b7a5b">pickups · slots · tiers</text>
+    <text x="1038" y="266" text-anchor="middle" font-size="11" fill="#0b7a5b">claim CTE — 30 stays 30</text>
+    <text x="1038" y="286" text-anchor="middle" font-size="11" fill="#0b7a5b">(atomic UPDATE, READ COMMITTED)</text>
+  </g>
+  <!-- R_admin -->
+  <g>
+    <rect x="910" y="440" width="256" height="58" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="1038" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">repos / admins</text>
+    <text x="1038" y="485" text-anchor="middle" font-size="11.5" fill="#0b7a5b">admin_users · admin_sessions</text>
+  </g>
+  <!-- R_roster -->
+  <g>
+    <rect x="910" y="540" width="256" height="58" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+    <text x="1038" y="564" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">repos / roster</text>
+    <text x="1038" y="585" text-anchor="middle" font-size="11.5" fill="#0b7a5b">bookedPickups() — spots · people · boxes</text>
+  </g>
+  <!-- R_pool -->
+  <g>
+    <rect x="910" y="700" width="256" height="66" rx="9" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+    <text x="1038" y="726" text-anchor="middle" font-size="14" font-weight="700" fill="#065f46">db / client.ts · pg Pool</text>
+    <text x="1038" y="748" text-anchor="middle" font-size="11.5" fill="#0b7a5b">one pool / lambda · max 5 · TLS to Neon</text>
+  </g>
+
+  <!-- ===================== DATA ===================== -->
+  <!-- D_pg -->
+  <g>
+    <rect x="1330" y="176" width="346" height="300" rx="11" fill="#faf5ff" stroke="#a855f7" stroke-width="2"/>
+    <text x="1503" y="206" text-anchor="middle" font-size="16" font-weight="700" fill="#581c87">PostgreSQL</text>
+    <text x="1503" y="228" text-anchor="middle" font-size="12" fill="#7e3ab0">Neon (pooled, prod) · local (dev + tests)</text>
+    <line x1="1352" y1="242" x2="1654" y2="242" stroke="#e2cffb"/>
+    <text x="1352" y="266" font-size="12" fill="#6b21a8">households:  families · family_allergies · contacts</text>
+    <text x="1352" y="288" font-size="12" fill="#6b21a8">booking:  slots · pickups · pickup_families</text>
+    <text x="1352" y="310" font-size="12" fill="#6b21a8">config:  food_tiers · slot_load (view)</text>
+    <text x="1352" y="332" font-size="12" fill="#6b21a8">chat:  sessions · messages</text>
+    <text x="1352" y="354" font-size="12" fill="#6b21a8">auth:  admin_users · admin_sessions</text>
+    <text x="1352" y="376" font-size="12" fill="#6b21a8">meta:  _migrations (advisory-locked)</text>
+    <line x1="1352" y1="392" x2="1654" y2="392" stroke="#e2cffb"/>
+    <text x="1352" y="416" font-size="11.5" fill="#8b3fc0">guards: slots_not_oversold · partial unique idx</text>
+    <text x="1352" y="436" font-size="11.5" fill="#8b3fc0">EXCLUDE constraint · reached via `pg` (no ORM)</text>
+    <text x="1352" y="460" font-size="11.5" fill="#8b3fc0">DATABASE_URL is sensitive — unreadable off-Vercel</text>
+  </g>
+  <!-- D_neon -->
+  <g>
+    <rect x="1330" y="520" width="346" height="80" rx="10" fill="#faf5ff" stroke="#a855f7" stroke-width="1.5"/>
+    <text x="1503" y="548" text-anchor="middle" font-size="14" font-weight="700" fill="#581c87">Neon SQL editor  (browser)</text>
+    <text x="1503" y="570" text-anchor="middle" font-size="11.5" fill="#7e3ab0">where prod admin INSERT is pasted by hand</text>
+    <text x="1503" y="588" text-anchor="middle" font-size="11.5" fill="#7e3ab0">prod credential never leaves Neon</text>
+  </g>
+
+  <!-- ===================== OPS BAND ===================== -->
+  <rect x="40" y="930" width="1636" height="272" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="62" y="960" font-size="16" font-weight="700" fill="#334155">Build &amp; Ops  —  runs inside the Vercel build, or on a laptop</text>
+
+  <!-- O_build -->
+  <g>
+    <rect x="70" y="985" width="380" height="92" rx="9" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+    <text x="260" y="1013" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">Vercel build  ·  `vercel-build`</text>
+    <text x="260" y="1036" text-anchor="middle" font-size="12" fill="#475569">migrate  →  seed  →  next build</text>
+    <text x="260" y="1057" text-anchor="middle" font-size="11.5" fill="#64748b">every deploy · no manual step · secret stays in Vercel</text>
+  </g>
+  <!-- O_mig -->
+  <g>
+    <rect x="500" y="985" width="360" height="66" rx="9" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+    <text x="680" y="1011" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">scripts / migrate.ts</text>
+    <text x="680" y="1032" text-anchor="middle" font-size="11.5" fill="#64748b">applies drizzle/*.sql · advisory lock · _migrations</text>
+  </g>
+  <!-- O_seed -->
+  <g>
+    <rect x="500" y="1071" width="360" height="66" rx="9" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+    <text x="680" y="1097" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">scripts / seed.ts</text>
+    <text x="680" y="1118" text-anchor="middle" font-size="11.5" fill="#64748b">tiers ON CONFLICT · rolls Wed slots +6 wks</text>
+  </g>
+  <!-- O_pw -->
+  <g>
+    <rect x="910" y="1028" width="410" height="82" rx="9" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+    <text x="1115" y="1056" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">scripts / admin-password.ts</text>
+    <text x="1115" y="1078" text-anchor="middle" font-size="11.5" fill="#64748b">scrypt hash → prints INSERT … ON CONFLICT</text>
+    <text x="1115" y="1096" text-anchor="middle" font-size="11.5" fill="#64748b">never connects to a database</text>
+  </g>
+
+  <!-- ===================== ARROWS ===================== -->
+  <g stroke="#475569" stroke-width="1.8" fill="none">
+    <!-- chat flow -->
+    <line x1="252" y1="206" x2="326" y2="206" marker-end="url(#arrow)"/>
+    <line x1="455" y1="236" x2="455" y2="252" marker-end="url(#arrow)"/>
+    <line x1="580" y1="286" x2="616" y2="212" marker-end="url(#arrow)"/>
+    <!-- runner <-> machine -->
+    <line x1="746" y1="236" x2="746" y2="248" marker-end="url(#arrow)"/>
+    <path d="M760,252 C800,244 800,228 762,222" marker-end="url(#arrow)"/>
+    <!-- runner -> parse -->
+    <line x1="720" y1="304" x2="720" y2="316" marker-end="url(#arrow)"/>
+    <!-- runner -> repos(booking) -->
+    <line x1="872" y1="210" x2="906" y2="222" marker-end="url(#arrow)"/>
+    <!-- repos booking -> pool -->
+    <path d="M1000,304 L1000,696" marker-end="url(#arrow)"/>
+    <!-- admin repos -> pool -->
+    <path d="M1038,498 L1038,696" marker-end="url(#arrow)"/>
+    <!-- roster -> pool -->
+    <path d="M1080,598 L1080,696" marker-end="url(#arrow)"/>
+    <!-- pool -> postgres -->
+    <path d="M1166,720 L1250,720 L1250,330 L1326,330" marker-end="url(#arrow)"/>
+
+    <!-- admin: staff -> proxy -->
+    <path d="M252,430 L292,430 L292,389 L326,389" marker-end="url(#arrow)"/>
+    <!-- proxy -> admin pages -->
+    <line x1="455" y1="418" x2="455" y2="436" marker-end="url(#arrow)"/>
+    <!-- staff -> server actions -->
+    <path d="M252,462 L280,462 L280,569 L326,569" marker-end="url(#arrow)"/>
+    <!-- admin pages -> requireAdmin -->
+    <line x1="580" y1="469" x2="616" y2="469" marker-end="url(#arrow)"/>
+    <!-- requireAdmin -> admin repos -->
+    <line x1="872" y1="469" x2="906" y2="469" marker-end="url(#arrow)"/>
+    <!-- admin pages -> roster -->
+    <path d="M560,498 L560,600 L560,600 L906,600" marker-end="url(#arrow)"/>
+    <!-- server actions -> session -->
+    <line x1="580" y1="569" x2="616" y2="569" marker-end="url(#arrow)"/>
+    <!-- session -> admin repos -->
+    <path d="M872,555 L890,555 L890,490 L906,490" marker-end="url(#arrow)"/>
+
+    <!-- ops: build -> migrate & seed -->
+    <path d="M450,1018 L500,1018" marker-end="url(#arrow)"/>
+    <path d="M450,1040 L480,1040 L480,1104 L500,1104" marker-end="url(#arrow)"/>
+    <!-- migrate -> pg -->
+    <path d="M860,1018 L1300,1018 L1300,480 L1326,470" marker-end="url(#arrow)"/>
+    <!-- seed -> pg -->
+    <path d="M860,1104 L1290,1104 L1290,478 L1326,462" marker-end="url(#arrow)"/>
+    <!-- neon editor -> pg -->
+    <line x1="1503" y1="516" x2="1503" y2="480" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Dashed / manual arrows -->
+  <g stroke="#94a3b8" stroke-width="1.8" fill="none" stroke-dasharray="5 4">
+    <!-- proxy redirect back -->
+    <path d="M330,405 L300,405 L300,455 L326,455" marker-end="url(#arrowDash)"/>
+    <!-- session -> staff (set cookie) -->
+    <path d="M620,580 L600,580 L600,700 L146,700 L146,490" marker-end="url(#arrowDash)"/>
+    <!-- api set-cookie to ambassador -->
+    <path d="M330,300 L300,300 L300,250 L146,250 L146,262" marker-end="url(#arrowDash)"/>
+    <!-- twilio future -> runner -->
+    <path d="M580,820 L640,820 L640,240 L638,240" marker-end="url(#arrowDash)"/>
+    <!-- developer -> admin-password script -->
+    <path d="M252,650 L1115,650 L1115,1024" marker-end="url(#arrowDash)"/>
+    <!-- developer -> vercel build (git push / deploy) -->
+    <path d="M146,686 L146,1031 L66,1031" marker-end="url(#arrowDash)"/>
+    <!-- admin-password prints SQL -> neon editor -->
+    <path d="M1320,1050 L1503,1050 L1503,604" marker-end="url(#arrowDash)"/>
+  </g>
+
+  <!-- Arrow labels -->
+  <g font-size="11" fill="#334155">
+    <g><rect x="256" y="196" width="66" height="16" fill="#f7f8fa"/><text x="260" y="208">HTTPS</text></g>
+    <g><rect x="462" y="238" width="86" height="15" fill="#f7f8fa"/><text x="466" y="250">fetch JSON</text></g>
+    <g><rect x="556" y="238" width="112" height="15" fill="#f7f8fa"/><text x="560" y="250">processInbound()</text></g>
+    <g><rect x="1178" y="700" width="118" height="15" fill="#f1f5f9"/><text x="1182" y="712">SQL / TCP · TLS</text></g>
+    <g><rect x="296" y="418" width="118" height="15" fill="#f7f8fa"/><text x="300" y="430">every /admin req</text></g>
+    <g><rect x="582" y="424" width="128" height="15" fill="#ffffff"/><text x="586" y="436">requireAdmin() → DB</text></g>
+    <g><rect x="1104" y="806" width="150" height="15" fill="#f7f8fa"/><text x="1108" y="818">applies SQL migrations</text></g>
+  </g>
+  <g font-size="10.5" fill="#94a3b8">
+    <g><rect x="150" y="238" width="150" height="14" fill="#f7f8fa"/><text x="154" y="249">Set-Cookie: fb session</text></g>
+    <g><rect x="150" y="512" width="150" height="14" fill="#f7f8fa"/><text x="154" y="523">Set-Cookie: fb_admin 12h</text></g>
+    <g><rect x="304" y="393" width="120" height="14" fill="#f7f8fa"/><text x="308" y="404">no cookie → login</text></g>
+    <g><rect x="646" y="150" width="140" height="14" fill="#ffffff"/><text x="650" y="161">future: same InboundMessage</text></g>
+    <g><rect x="700" y="640" width="150" height="14" fill="#f7f8fa"/><text x="704" y="651">runs script (prints SQL)</text></g>
+    <g><rect x="1360" y="1040" width="130" height="14" fill="#f1f5f9"/><text x="1364" y="1051">paste INSERT by hand</text></g>
+    <g><rect x="70" y="880" width="150" height="14" fill="#f7f8fa"/><text x="74" y="891">git push → deploy</text></g>
+  </g>
+</svg>
